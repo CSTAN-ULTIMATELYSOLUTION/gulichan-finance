@@ -1,26 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSupabaseEnv } from '@/lib/api';
 import { categorise } from '@/lib/categoriser';
+import { parseStatementPdf } from '@/lib/statement-parser';
 import { supabaseAdmin } from '@/lib/supabase';
-import { Account, ParseResult } from '@/lib/types';
+import { Account } from '@/lib/types';
+
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   const envError = requireSupabaseEnv();
   if (envError) return envError;
 
-  const parserUrl = process.env.PARSER_SERVICE_URL;
-  if (!parserUrl) return NextResponse.json({ error: 'PARSER_SERVICE_URL is missing.' }, { status: 503 });
-
   const formData = await req.formData();
   const file = formData.get('file');
   if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
 
-  const parserForm = new FormData();
-  parserForm.append('file', file);
-  const parserResponse = await fetch(`${parserUrl}/parse`, { method: 'POST', body: parserForm });
-  if (!parserResponse.ok) return NextResponse.json({ error: 'Parse failed.' }, { status: 500 });
-
-  const parsed = (await parserResponse.json()) as ParseResult;
+  const parsed = await parseStatementPdf(file);
   const { data: accounts, error: accountError } = await supabaseAdmin
     .from('accounts')
     .select('id, institution')
