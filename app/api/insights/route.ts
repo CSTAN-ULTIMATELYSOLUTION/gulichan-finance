@@ -1,41 +1,62 @@
 import { NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import { requireSupabaseEnv } from '@/lib/api';
 import { currentMonthKey } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
+import { CategorySummary, Debt, MonthlySummary } from '@/lib/types';
+
+function money(amount: number) {
+  return `RM ${amount.toLocaleString('en-MY', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+}
+
+function buildInsights(monthly: MonthlySummary[], categories: CategorySummary[], debts: Debt[]) {
+  const current = monthly[0];
+  if (!current) return ['No monthly transaction data yet. Upload statements first, then rerun analysis.'];
+
+  const personalDebts = debts.filter((debt) => debt.type === 'personal');
+  const personalDebtTotal = personalDebts.reduce((sum, debt) => sum + Number(debt.remaining_amount), 0);
+  const net = Number(current.salary_income) - Number(current.personal_costs);
+  const topCategory = [...categories].sort((a, b) => Number(b.total_spent) - Number(a.total_spent))[0];
+  const debtTarget = personalDebts.sort((a, b) => a.priority - b.priority || Number(b.remaining_amount) - Number(a.remaining_amount))[0];
+
+  const insights: string[] = [];
+
+  if (net > 0) {
+    insights.push(`1. You have ${money(net)} left after personal costs this month. Send at least ${money(Math.min(net, personalDebtTotal))} to personal debt before it leaks into spending.`);
+  } else {
+    insights.push(`1. You are ${money(Math.abs(net))} negative after personal costs this month. Freeze non-fixed spending until salary resets.`);
+  }
+
+  if (topCategory) {
+    insights.push(`2. Your biggest spend category is ${topCategory.category.replaceAll('_', ' ')} at ${money(Number(topCategory.total_spent))}. Cut this first; it is the fastest lever.`);
+  } else {
+    insights.push('2. No category spending exists for this month yet. Import statements before changing the budget.');
+  }
+
+  if (debtTarget) {
+    insights.push(`3. Attack ${debtTarget.creditor} next: ${money(Number(debtTarget.remaining_amount))} remaining. Keep AGA/business debts separate from salary cashflow.`);
+  } else {
+    insights.push('3. No active personal debt found. Keep the debt page clean and redirect surplus to savings.');
+  }
+
+  return insights;
+}
 
 export async function GET() {
   const envError = requireSupabaseEnv();
   if (envError) return envError;
-  if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'ANTHROPIC_API_KEY is missing.' }, { status: 503 });
 
   const month = currentMonthKey();
   const [hist, cats, debts] = await Promise.all([
-    supabase.from('monthly_summary').select('*').order('month', { ascending: false }).limit(3),
-    supabase.from('category_summary').select('*').eq('month', month),
-    supabase.from('debts').select('*').eq('status', 'active')
+    supabase.from('monthly_summary').select('*').order('month', { ascending: false }).limit(3).returns<MonthlySummary[]>(),
+    supabase.from('category_summary').select('*').eq('month', month).returns<CategorySummary[]>(),
+    supabase.from('debts').select('*').eq('status', 'active').returns<Debt[]>()
   ]);
 
   const error = hist.error ?? cats.error ?? debts.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const anthropic = new Anthropic();
-  const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 500,
-    messages: [
-      {
-        role: 'user',
-        content: `You are a blunt personal finance advisor for a Malaysian SME founder earning RM5,000/month.
-Give exactly 3 short actionable insights referencing real numbers. No fluff.
-Monthly data: ${JSON.stringify(hist.data)}
-This month categories: ${JSON.stringify(cats.data)}
-Active debts: ${JSON.stringify(debts.data)}`
-      }
-    ]
-  });
-
-  const first = msg.content[0];
-  const text = first?.type === 'text' ? first.text : '';
-  return NextResponse.json({ insights: text });
+  return NextResponse.json({ insights: buildInsights(hist.data ?? [], cats.data ?? [], debts.data ?? []).join('\n') });
 }
