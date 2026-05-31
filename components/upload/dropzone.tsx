@@ -12,6 +12,17 @@ interface UploadResult {
   error?: string;
 }
 
+async function readUploadResponse(res: Response): Promise<UploadResult> {
+  const text = await res.text();
+  if (!text) return { inserted: 0, skipped: 0, detected: '', errors: [], error: 'Upload failed.' };
+
+  try {
+    return JSON.parse(text) as UploadResult;
+  } catch {
+    return { inserted: 0, skipped: 0, detected: '', errors: [], error: 'Upload failed.' };
+  }
+}
+
 export function Dropzone() {
   const [fileName, setFileName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,7 +40,7 @@ export function Dropzone() {
     form.append('file', file);
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: form });
-      const body = (await res.json()) as UploadResult;
+      const body = await readUploadResponse(res);
       if (!res.ok) throw new Error(body.error ?? 'Upload failed.');
       setResult(body);
     } catch (err) {

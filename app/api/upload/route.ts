@@ -15,7 +15,15 @@ export async function POST(req: NextRequest) {
   const file = formData.get('file');
   if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
 
-  const parsed = await parseStatementPdf(file);
+  let parsed;
+  try {
+    parsed = await parseStatementPdf(file);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'PDF parse failed.' },
+      { status: 400 }
+    );
+  }
   const { data: accounts, error: accountError } = await supabaseAdmin
     .from('accounts')
     .select('id, institution')

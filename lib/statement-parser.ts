@@ -1,5 +1,11 @@
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { PDFParse } from 'pdf-parse';
 import { ParseResult, TransactionDirection } from './types';
+
+const pdfWorkerPath = path.join(process.cwd(), 'node_modules/pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs');
+
+PDFParse.setWorker(pathToFileURL(pdfWorkerPath).toString());
 
 function parseDate(value: string) {
   const trimmed = value.trim();
@@ -85,9 +91,13 @@ function parseLines(text: string, sourceFile: string): ParseResult['transactions
 export async function parseStatementPdf(file: File): Promise<ParseResult> {
   const buffer = Buffer.from(await file.arrayBuffer());
   const parser = new PDFParse({ data: buffer });
-  const result = await parser.getText();
-  await parser.destroy();
-  const text = result.text ?? '';
+  let text = '';
+  try {
+    const result = await parser.getText();
+    text = result.text ?? '';
+  } finally {
+    await parser.destroy();
+  }
   const parseErrors: string[] = [];
 
   if (!text.trim()) {
