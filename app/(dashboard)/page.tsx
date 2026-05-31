@@ -65,7 +65,7 @@ export default function DashboardPage() {
       </div>
 
       {!current && data.last_6_months.length === 0 ? (
-        <EmptyBlock title="No finance data yet" body="Upload a statement after Supabase and the parser service are configured." />
+        <EmptyBlock title="No finance data yet" body="Upload a statement after Supabase is configured." />
       ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

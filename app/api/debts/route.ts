@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { requireSupabaseEnv } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { Debt } from '@/lib/types';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const envError = requireSupabaseEnv();
   if (envError) return envError;
 
-  const { data, error } = await supabase.from('debts').select('*').eq('status', 'active').order('priority').returns<Debt[]>();
+  const { data, error } = await supabaseAdmin.from('debts').select('*').eq('status', 'active').order('priority').returns<Debt[]>();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({

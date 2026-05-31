@@ -1,0 +1,11 @@
+GRANT USAGE ON SCHEMA personal_finance TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA personal_finance TO service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA personal_finance TO service_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA personal_finance
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO service_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA personal_finance
+GRANT USAGE, SELECT ON SEQUENCES TO service_role;
+
+NOTIFY pgrst, 'reload schema';

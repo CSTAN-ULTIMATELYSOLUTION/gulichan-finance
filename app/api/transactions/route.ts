@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSupabaseEnv } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { Transaction } from '@/lib/types';
 
 export async function GET(req: NextRequest) {
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const params = new URL(req.url).searchParams;
   const page = Number(params.get('page') || '1');
   const limit = Number(params.get('limit') || '50');
-  let query = supabase
+  let query = supabaseAdmin
     .from('transactions')
     .select('*, account:accounts(name,institution)', { count: 'exact' })
     .order('date', { ascending: false })

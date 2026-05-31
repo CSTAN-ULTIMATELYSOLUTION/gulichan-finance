@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireSupabaseEnv } from '@/lib/api';
 import { currentMonthKey } from '@/lib/format';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { CategorySummary, Debt, MonthlySummary } from '@/lib/types';
+
+export const dynamic = 'force-dynamic';
 
 function money(amount: number) {
   return `RM ${amount.toLocaleString('en-MY', {
@@ -50,9 +52,9 @@ export async function GET() {
 
   const month = currentMonthKey();
   const [hist, cats, debts] = await Promise.all([
-    supabase.from('monthly_summary').select('*').order('month', { ascending: false }).limit(3).returns<MonthlySummary[]>(),
-    supabase.from('category_summary').select('*').eq('month', month).returns<CategorySummary[]>(),
-    supabase.from('debts').select('*').eq('status', 'active').returns<Debt[]>()
+    supabaseAdmin.from('monthly_summary').select('*').order('month', { ascending: false }).limit(3).returns<MonthlySummary[]>(),
+    supabaseAdmin.from('category_summary').select('*').eq('month', month).returns<CategorySummary[]>(),
+    supabaseAdmin.from('debts').select('*').eq('status', 'active').returns<Debt[]>()
   ]);
 
   const error = hist.error ?? cats.error ?? debts.error;
