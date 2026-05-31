@@ -40,10 +40,25 @@ CREATE TABLE personal_finance.transactions (
   is_reimbursable BOOLEAN DEFAULT false,
   reimbursed BOOLEAN DEFAULT false,
   source_file TEXT,
-  month TEXT GENERATED ALWAYS AS (to_char(date,'YYYY-MM')) STORED,
+  month TEXT NOT NULL,
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE OR REPLACE FUNCTION personal_finance.set_transaction_month()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.month := to_char(NEW.date, 'YYYY-MM');
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER set_transaction_month_before_write
+BEFORE INSERT OR UPDATE OF date ON personal_finance.transactions
+FOR EACH ROW
+EXECUTE FUNCTION personal_finance.set_transaction_month();
 
 CREATE INDEX idx_txn_month ON personal_finance.transactions(month);
 CREATE INDEX idx_txn_account ON personal_finance.transactions(account_id);
@@ -100,7 +115,8 @@ INSERT INTO personal_finance.budgets (month, category, budgeted_amount, notes) V
   ('2026-06','beauty_wellness',0.00,'PAUSED'),
   ('2026-06','travel_hotel',0.00,'PAUSED');
 
-CREATE OR REPLACE VIEW personal_finance.monthly_summary AS
+CREATE OR REPLACE VIEW personal_finance.monthly_summary
+WITH (security_invoker = true) AS
 SELECT
   month,
   SUM(CASE WHEN direction='in' AND category='salary' THEN amount ELSE 0 END) AS salary_income,
@@ -115,7 +131,8 @@ FROM personal_finance.transactions
 GROUP BY month
 ORDER BY month DESC;
 
-CREATE OR REPLACE VIEW personal_finance.category_summary AS
+CREATE OR REPLACE VIEW personal_finance.category_summary
+WITH (security_invoker = true) AS
 SELECT
   month,
   category,
